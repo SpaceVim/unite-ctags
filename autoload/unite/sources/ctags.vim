@@ -1,9 +1,9 @@
 ﻿let s:save_cpo = &cpo
 set cpo&vim
 
-"""""""""""""""""""""""""""""""""""""""""""""""""""
+" Function {{{
 function! s:order_by_line(lhe, rhe) "{{{
-  return ( ( a:lhe[1].line == a:rhe[1].line ) ? 0 : ( ( a:lhe[1].line > a:rhe[1].line ) ? 1 : -1 ) )
+  return a:lhe[1].line - a:rhe[1].line
 endfunction "}}}
 
 function! s:node2candidate(name, node, path, indent) "{{{
@@ -16,9 +16,7 @@ function! s:node2candidate(name, node, path, indent) "{{{
   if l:candidate.is_dummy
     let l:candidate.word = printf('%s[ ] %s', a:indent, a:name)
   else
-    let l:info = a:node.info
-
-    let l:candidate.word = printf('%s[%s] %s', a:indent, l:info.kind_mark, a:name)
+    let l:candidate.word = printf('%s[%s] %s', a:indent, a:node.info.kind_mark, a:name)
   endif
 
   return l:candidate
@@ -27,7 +25,7 @@ endfunction "}}}
 function! s:flatton(nodes, path, depth, candidates) "{{{
   let l:indent = printf(printf('%%%ds', a:depth * 2), ' ')
 
-  for [l:name, l:node] in sort(items(a:nodes), 's:order_by_line')
+  for [l:name, l:node] in sort(items(a:nodes), function('s:order_by_line'))
 
     call add(a:candidates, s:node2candidate(l:name, l:node, a:path, l:indent))
 
@@ -40,7 +38,7 @@ endfunction "}}}
 function! s:tree2candidates(tree, path) "{{{
   let l:candidates = []
 
-  for [l:name, l:node] in sort(items(a:tree), 's:order_by_line')
+  for [l:name, l:node] in sort(items(a:tree), function('s:order_by_line'))
 
     call add(l:candidates, s:node2candidate(l:name, l:node, a:path, ''))
 
@@ -51,25 +49,29 @@ function! s:tree2candidates(tree, path) "{{{
 
   return l:candidates
 endfunction "}}}
+" }}}
 
-
-"""""""""""""""""""""""""""""""""""""""""""""""""""
+" Source {{{
 let s:unite_source = { 'name': 'ctags', 'hooks': {} }
 
 function! s:unite_source.hooks.on_init(args, context) "{{{
-  let a:context['source__fileinfo'] = { 'path': fnamemodify(expand('%'), ':p'), 'type': &filetype }
+  let a:context.source__path = fnamemodify(expand('%'), ':p')
+  let a:context.source__filetype = &filetype
 endfunction "}}}
 
 function! s:unite_source.gather_candidates(args, context) "{{{
-  let l:fileinfo = get(a:context, 'source__fileinfo', { 'path': '', 'type': '' })
-  let l:tree = ctags_util#get_tag_tree(l:fileinfo.path, l:fileinfo.type)
+  let l:path = get(a:context, 'source__path', fnamemodify(expand('%'), ':p'))
+  let l:filetype = get(a:context, 'source__filetype', &filetype)
 
-  return s:tree2candidates(l:tree, l:fileinfo.path)
+  let l:tree = ctag_util#get_tag_tree(l:path, l:filetype)
+
+  return s:tree2candidates(l:tree, l:path)
 endfunction "}}}
 
 function! unite#sources#ctags#define() "{{{
   return [ s:unite_source ]
 endfunction "}}}
+" }}}
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
